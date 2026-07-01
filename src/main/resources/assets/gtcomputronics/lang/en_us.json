@@ -1,4 +1,8 @@
 {
   "itemGroup.gtcomputronics.main": "GregTech: Computronics",
-  "item.gtcomputronics.punch_card": "Punch Card"
+  "item.gtcomputronics.punch_card": "Punch Card",
+  "item.gtcomputronics.punch_card.research": "Research: %s",
+  "item.gtcomputronics.punch_card.signals": "Signal: %s -> %s",
+  "item.gtcomputronics.punch_card.completed": "Completed",
+  "block.gtcomputronics.analog_tabulator": "Analog Tabulator"
 }

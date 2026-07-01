@@ -21,6 +21,7 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
 import com.gregtechcomputronics.data.CustomCreativeModeTabs;
 import com.gregtechcomputronics.data.CustomItems;
+import com.gregtechcomputronics.data.CustomMachines;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -124,7 +125,7 @@ public class ComputronicsMod {
      * @param event
      */
     private void registerMachines(GTCEuAPI.RegisterEvent<ResourceLocation, MachineDefinition> event) {
-        // CustomMachines.init();
+        CustomMachines.init();
     }
 
     /**

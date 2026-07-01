@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "RCR",
+    "PHP",
+    "RCR"
+  ],
+  "key": {
+    "C": {
+      "item": "gtceu:basic_electronic_circuit"
+    },
+    "H": {
+      "item": "gtceu:lv_machine_hull"
+    },
+    "P": {
+      "item": "gtcomputronics:punch_card"
+    },
+    "R": {
+      "item": "gtceu:resistor"
+    }
+  },
+  "result": {
+    "item": "gtcomputronics:analog_tabulator"
+  }
+}
