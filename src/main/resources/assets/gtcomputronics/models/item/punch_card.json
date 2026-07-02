@@ -1,6 +1,14 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "minecraft:item/paper"
-  }
+    "layer0": "gtcomputronics:item/punchcard_unfilled"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "gtcomputronics:filled": 1.0
+      },
+      "model": "gtcomputronics:item/punch_card_filled"
+    }
+  ]
 }
