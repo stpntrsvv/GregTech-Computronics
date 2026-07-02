@@ -201,16 +201,19 @@ Run full pre-commit check:
 - The Analog Tabulator GUI is a functional placeholder built with GTCEu/LDLib widgets, not final art.
 - The Analog Tabulator block uses an existing GTCEu hull overlay for now.
 - Circuit components are detected by GTCEu item ids:
+  - wire/cable-like GTCEu items and item tags are treated as neutral wires
   - `gtceu:resistor`, `gtceu:smd_resistor`, `gtceu:advanced_smd_resistor`
   - `gtceu:diode`, `gtceu:smd_diode`, `gtceu:advanced_smd_diode`
   - `gtceu:capacitor`, `gtceu:smd_capacitor`, `gtceu:advanced_smd_capacitor`, `gtceu:tantalum_capacitor`
   - `gtceu:vacuum_tube`
 - The current solver accepts any path through the 5x5 graph from the fixed left-middle entry point to the fixed right-middle exit point. It applies:
   - resistor: `signal - 1`
+  - wire/cable: unchanged signal
   - diode: only left-to-right movement
   - capacitor: requires `signal >= 4`
   - vacuum tube: `signal + 3`
 - The displayed `Out` signal is only the signal that reaches the fixed exit point. Intermediate signals elsewhere in the graph must not be shown as output.
+- A single path cannot reuse the same grid slot. This prevents amplifier loops from raising the signal indefinitely.
 - On success, the machine shrinks each unique component stack used by the successful path by 1. Components not on the solved path remain in the grid.
 - The package/class names are already changed to `com.gregtechcomputronics`.
 - The dummy mixin is still present from the template. Do not add real mixins unless an API/event solution is not enough.
