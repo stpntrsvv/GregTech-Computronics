@@ -108,7 +108,7 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
         Set<Node> visited = new HashSet<>();
         queue.add(new Node(0, startY, startSignal, 1, 0, List.of(slotIndex(0, startY))));
 
-        int bestSignal = 0;
+        Integer reachedTargetSignal = null;
         while (!queue.isEmpty()) {
             Node node = queue.removeFirst();
             if (!visited.add(node)) {
@@ -120,9 +120,9 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
             if (nextSignal <= 0 || nextSignal > MAX_SIGNAL) {
                 continue;
             }
-            bestSignal = nextSignal;
 
             if (node.x() == gridWidth - 1 && node.y() == targetY) {
+                reachedTargetSignal = nextSignal;
                 if (nextSignal == targetSignal) {
                     return new CircuitResult(true, nextSignal, "Matched target", node.path());
                 }
@@ -135,10 +135,10 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
             enqueue(queue, node, node.x(), node.y() - 1, nextSignal, 0, -1);
         }
 
-        if (bestSignal == 0) {
+        if (reachedTargetSignal == null) {
             return new CircuitResult(false, 0, "Open circuit", List.of());
         }
-        return new CircuitResult(false, bestSignal, "Signal mismatch", List.of());
+        return new CircuitResult(false, reachedTargetSignal, "Signal mismatch", List.of());
     }
 
     private CircuitComponent componentAt(int x, int y) {
