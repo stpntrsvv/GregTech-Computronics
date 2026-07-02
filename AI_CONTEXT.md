@@ -91,7 +91,18 @@ public static final ItemEntry<PunchedCardItem> PUNCH_CARD = ComputronicsMod.REGI
     - `StartSignal`
     - `TargetSignal`
     - `Completed`
-  - Untagged punch cards default to `basic_tabulation`, start signal `5`, target signal `7`.
+    - `GridWidth`
+    - `GridHeight`
+    - `StartX`
+    - `StartY`
+    - `TargetX`
+    - `TargetY`
+    - `BurnedCells`
+    - `LockedCellSlots`
+    - `LockedCellComponents`
+  - `BurnedCells` is an int array of card-local slot indexes: `y * GridWidth + x`.
+  - `LockedCellSlots` is an int array of card-local slot indexes. `LockedCellComponents` is a parallel int array of component ids.
+  - Untagged punch cards default to `basic_tabulation`, start signal `5`, target signal `7`, field `5x5`, start `(0, 2)`, target `(4, 2)`, no burned cells, and a locked capacitor at `(2, 2)`.
 
 - `src/main/resources/assets/gtcomputronics/lang/en_us.json`
   - Client-facing English names.
@@ -206,13 +217,18 @@ Run full pre-commit check:
   - `gtceu:diode`, `gtceu:smd_diode`, `gtceu:advanced_smd_diode`
   - `gtceu:capacitor`, `gtceu:smd_capacitor`, `gtceu:advanced_smd_capacitor`, `gtceu:tantalum_capacitor`
   - `gtceu:vacuum_tube`
-- The current solver accepts any path through the 5x5 graph from the fixed left-middle entry point to the fixed right-middle exit point. It applies:
+- The machine UI currently has a maximum 5x5 grid, but the active puzzle field is read from the inserted punch card.
+- Start coordinates, target coordinates, and burned cells are read from the inserted punch card.
+- Slots outside the card field or listed as burned cells reject circuit components and are ignored by the solver.
+- Locked component cells are read from the inserted punch card. They reject player-placed items, are used by the solver as virtual components, and are not consumed on success.
+- Locked component cells are also drawn over the grid with LDLib `ImageWidget` + `ItemStackTexture` using representative GTCEu item textures. The default locked capacitor displays `gtceu:capacitor`.
+- The current solver accepts any path through the card-defined field from the card-defined entry point to the card-defined exit point. It applies:
   - resistor: `signal - 1`
   - wire/cable: unchanged signal
   - diode: only left-to-right movement
   - capacitor: requires `signal >= 4`
   - vacuum tube: `signal + 3`
-- The displayed `Out` signal is only the signal that reaches the fixed exit point. Intermediate signals elsewhere in the graph must not be shown as output.
+- The displayed `Out` signal is only the signal that reaches the card-defined exit point. Intermediate signals elsewhere in the graph must not be shown as output.
 - A single path cannot reuse the same grid slot. This prevents amplifier loops from raising the signal indefinitely.
 - On success, the machine shrinks each unique component stack used by the successful path by 1. Components not on the solved path remain in the grid.
 - The package/class names are already changed to `com.gregtechcomputronics`.

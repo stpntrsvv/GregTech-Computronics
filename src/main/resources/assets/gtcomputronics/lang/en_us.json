@@ -3,6 +3,10 @@
   "item.gtcomputronics.punch_card": "Punch Card",
   "item.gtcomputronics.punch_card.research": "Research: %s",
   "item.gtcomputronics.punch_card.signals": "Signal: %s -> %s",
+  "item.gtcomputronics.punch_card.field": "Field: %sx%s",
+  "item.gtcomputronics.punch_card.route": "Route: (%s, %s) -> (%s, %s)",
+  "item.gtcomputronics.punch_card.burned": "Burned cells: %s",
+  "item.gtcomputronics.punch_card.locked": "Locked components: %s",
   "item.gtcomputronics.punch_card.completed": "Completed",
   "block.gtcomputronics.analog_tabulator": "Analog Tabulator"
 }
