@@ -210,6 +210,7 @@ Run full pre-commit check:
   - diode: only left-to-right movement
   - capacitor: requires `signal >= 4`
   - vacuum tube: `signal + 3`
+- The displayed `Out` signal is only the signal that reaches the fixed exit point. Intermediate signals elsewhere in the graph must not be shown as output.
 - On success, the machine shrinks each unique component stack used by the successful path by 1. Components not on the solved path remain in the grid.
 - The package/class names are already changed to `com.gregtechcomputronics`.
 - The dummy mixin is still present from the template. Do not add real mixins unless an API/event solution is not enough.
