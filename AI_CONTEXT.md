@@ -37,6 +37,15 @@ Implemented in code and build-tested:
 
 - Machine: `gtcomputronics:analog_tabulator`
 - Machine class: `AnalogTabulatorMachine`
+- Multiblock casing block: `gtcomputronics:analog_computing_framework`
+- `AnalogTabulatorMachine` is a GTCEu `MultiblockControllerMachine`, not a normal single-block machine.
+- The tabulator UI only opens while the multiblock is formed.
+- Current multiblock structure is a flat 3x2x1 rectangle:
+  - bottom row: 3 positions accepting `Analog Computing Framework`, with exactly one position required to be a GTCEu LV energy input hatch
+  - top row: `Analog Computing Framework`, `Analog Tabulator`, `Analog Computing Framework`
+- `Analog Computing Framework` currently uses a temporary vanilla cobblestone cube texture.
+- Temporary framework recipe: shaped cobblestone + redstone + paper -> 6 framework blocks.
+- The formed tabulator consumes 16 EU/t while at least one player has its UI open.
 - 5x5 circuit grid
 - Fixed signal entry point: middle cell on the left edge
 - Fixed signal exit point: middle cell on the right edge
@@ -52,7 +61,7 @@ Implemented in code and build-tested:
 - `src/main/java/com/gregtechcomputronics/ComputronicsMod.java`
   - Forge mod entrypoint via `@Mod(ComputronicsMod.MOD_ID)`.
   - Registers Forge/GTCEu event listeners.
-  - Calls `CustomCreativeModeTabs.init()`, then `CustomItems.init()`, then `REGISTRATE.registerRegistrate()`.
+  - Calls `CustomCreativeModeTabs.init()`, then `CustomBlocks.init()`, then `CustomItems.init()`, then `REGISTRATE.registerRegistrate()`.
 
 - `src/main/java/com/gregtechcomputronics/ComputronicsGTAddon.java`
   - GTCEu addon entrypoint via `@GTAddon`.
@@ -74,13 +83,20 @@ public static final ItemEntry<PunchedCardItem> PUNCH_CARD = ComputronicsMod.REGI
         .register();
 ```
 
+- `src/main/java/com/gregtechcomputronics/data/CustomBlocks.java`
+  - Register normal blocks here.
+  - Current block: `ANALOG_COMPUTING_FRAMEWORK`.
+  - Registered before items so it is included in the mod creative tab by Registrate.
+
 - `src/main/java/com/gregtechcomputronics/data/CustomMachines.java`
   - Register GTCEu machines here.
-  - Current machine: `ANALOG_TABULATOR`.
+  - Current machine: `ANALOG_TABULATOR`, registered through `ComputronicsMod.REGISTRATE.multiblock(...)`.
+  - Its pattern uses `FactoryBlockPattern.start().aisle("EEE", "FSF")`, where `S` is the controller, `F` is `Analog Computing Framework`, and `E` accepts framework or one required LV input energy hatch.
 
 - `src/main/java/com/gregtechcomputronics/common/machine/AnalogTabulatorMachine.java`
-  - Single-block GTCEu machine based on `MetaMachine`.
+  - GTCEu multiblock controller based on `MultiblockControllerMachine`.
   - Implements `IFancyUIMachine` and `IMachineLife`.
+  - Overrides `shouldOpenUI(...)` to return `isFormed()`.
   - Constructor accepts `gridWidth` and `gridHeight`.
   - Current registration uses `new AnalogTabulatorMachine(holder, 5, 5)`.
   - Uses `NotifiableItemStackHandler` for input card, circuit grid, and output card.
@@ -110,8 +126,16 @@ public static final ItemEntry<PunchedCardItem> PUNCH_CARD = ComputronicsMod.REGI
 - `src/main/resources/assets/gtcomputronics/models/item/punch_card.json`
   - Item model for the punch card.
 
+- `src/main/resources/assets/gtcomputronics/blockstates/analog_computing_framework.json`
+- `src/main/resources/assets/gtcomputronics/models/block/analog_computing_framework.json`
+- `src/main/resources/assets/gtcomputronics/models/item/analog_computing_framework.json`
+  - Temporary framework block/item model resources.
+
 - `src/main/resources/data/gtcomputronics/recipes/punch_card.json`
   - Temporary vanilla crafting recipe.
+
+- `src/main/resources/data/gtcomputronics/recipes/analog_computing_framework.json`
+  - Temporary vanilla shaped crafting recipe for framework casings.
 
 - `src/main/resources/gtcomputronics.mixins.json`
   - Mixin config. Only contains a dummy mixin for now.
@@ -124,11 +148,12 @@ Current order:
 
 ```java
 CustomCreativeModeTabs.init();
+CustomBlocks.init();
 CustomItems.init();
 REGISTRATE.registerRegistrate();
 ```
 
-Keep the creative tab init before item init so new items are associated with the mod tab by `GTRegistrate`.
+Keep the creative tab init before block/item init so new entries are associated with the mod tab by `GTRegistrate`.
 
 Use `ComputronicsMod.REGISTRATE` for Registrate content. Do not create another registrate instance unless there is a specific reason.
 
@@ -211,6 +236,9 @@ Run full pre-commit check:
 - The punch card recipe is temporary and intentionally simple.
 - The Analog Tabulator GUI is a functional placeholder built with GTCEu/LDLib widgets, not final art.
 - The Analog Tabulator block uses an existing GTCEu hull overlay for now.
+- The Analog Tabulator is currently the controller of a small 3x2x1 multiblock. Right-clicking the controller before the structure forms intentionally does not open the UI.
+- The Analog Tabulator requires exactly one GTCEu LV energy input hatch in the bottom layer and drains 16 EU/t while its UI is open.
+- The Analog Computing Framework texture and recipe are placeholders.
 - Circuit components are detected by GTCEu item ids:
   - wire/cable-like GTCEu items and item tags are treated as neutral wires
   - `gtceu:resistor`, `gtceu:smd_resistor`, `gtceu:advanced_smd_resistor`

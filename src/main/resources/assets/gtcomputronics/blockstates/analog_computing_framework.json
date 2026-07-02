@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "gtcomputronics:block/analog_computing_framework"
+    }
+  }
+}

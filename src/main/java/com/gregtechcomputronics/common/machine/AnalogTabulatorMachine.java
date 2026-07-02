@@ -1,14 +1,20 @@
 package com.gregtechcomputronics.common.machine;
 
+import com.gregtechceu.gtceu.api.capability.IEnergyContainer;
+import com.gregtechceu.gtceu.api.capability.recipe.EURecipeCapability;
 import com.gregtechceu.gtceu.api.capability.recipe.IO;
 import com.gregtechceu.gtceu.api.gui.GuiTextures;
+import com.gregtechceu.gtceu.api.gui.fancy.FancyMachineUIWidget;
 import com.gregtechceu.gtceu.api.gui.widget.SlotWidget;
 import com.gregtechceu.gtceu.api.machine.IMachineBlockEntity;
-import com.gregtechceu.gtceu.api.machine.MetaMachine;
+import com.gregtechceu.gtceu.api.machine.TickableSubscription;
 import com.gregtechceu.gtceu.api.machine.feature.IFancyUIMachine;
 import com.gregtechceu.gtceu.api.machine.feature.IMachineLife;
+import com.gregtechceu.gtceu.api.machine.multiblock.MultiblockControllerMachine;
 import com.gregtechceu.gtceu.api.machine.trait.NotifiableItemStackHandler;
+import com.gregtechceu.gtceu.api.misc.EnergyContainerList;
 
+import com.lowdragmc.lowdraglib.gui.modular.ModularUI;
 import com.lowdragmc.lowdraglib.gui.texture.ItemStackTexture;
 import com.lowdragmc.lowdraglib.gui.widget.ImageWidget;
 import com.lowdragmc.lowdraglib.gui.widget.LabelWidget;
@@ -19,9 +25,12 @@ import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import com.gregtechcomputronics.common.item.PunchedCardItem;
@@ -32,16 +41,20 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachine, IMachineLife {
+public class AnalogTabulatorMachine extends MultiblockControllerMachine implements IFancyUIMachine, IMachineLife {
 
     protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(
-            AnalogTabulatorMachine.class, MetaMachine.MANAGED_FIELD_HOLDER);
+            AnalogTabulatorMachine.class, MultiblockControllerMachine.MANAGED_FIELD_HOLDER);
 
     private static final int CAPACITOR_THRESHOLD = 4;
     private static final int MAX_SIGNAL = 64;
+    private static final long UI_ENERGY_USAGE = 16L;
 
     private final int gridWidth;
     private final int gridHeight;
+    private EnergyContainerList energyContainer;
+    private TickableSubscription uiEnergySubscription;
+    private int openInterfaceCount;
 
     @Persisted
     protected final NotifiableItemStackHandler cardInput;
@@ -74,9 +87,101 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
         return MANAGED_FIELD_HOLDER;
     }
 
+    @Override
+    public boolean shouldOpenUI(Player player, InteractionHand hand, BlockHitResult hit) {
+        return isFormed();
+    }
+
+    @Override
+    public void onStructureFormed() {
+        super.onStructureFormed();
+        energyContainer = createEnergyContainer();
+    }
+
+    @Override
+    public void onStructureInvalid() {
+        super.onStructureInvalid();
+        energyContainer = null;
+        openInterfaceCount = 0;
+        stopUiEnergySubscription();
+    }
+
+    @Override
+    public void onPartUnload() {
+        super.onPartUnload();
+        energyContainer = null;
+    }
+
+    @Override
+    public ModularUI createUI(Player entityPlayer) {
+        ModularUI ui = new ModularUI(176, 166, this, entityPlayer).widget(new FancyMachineUIWidget(this, 176, 166));
+        if (!isRemote()) {
+            openInterfaceCount++;
+            startUiEnergySubscription();
+            ui.registerCloseListener(() -> {
+                openInterfaceCount = Math.max(0, openInterfaceCount - 1);
+                if (openInterfaceCount == 0) {
+                    stopUiEnergySubscription();
+                }
+            });
+        }
+        return ui;
+    }
+
     private void onItemsChanged() {
+        if (!hasUiPower()) {
+            currentOutputSignal = 0;
+            status = "Insufficient energy";
+            markDirty();
+            return;
+        }
         checkCircuit();
         markDirty();
+    }
+
+    private EnergyContainerList createEnergyContainer() {
+        List<IEnergyContainer> containers = getParts().stream()
+                .flatMap(part -> part.getRecipeHandlers().stream())
+                .filter(handlerList -> handlerList.isValid(IO.IN))
+                .flatMap(handlerList -> handlerList.getCapability(EURecipeCapability.CAP).stream())
+                .filter(IEnergyContainer.class::isInstance)
+                .map(IEnergyContainer.class::cast)
+                .toList();
+        return new EnergyContainerList(containers);
+    }
+
+    private boolean hasUiPower() {
+        return openInterfaceCount == 0 ||
+                energyContainer != null && energyContainer.getEnergyStored() >= UI_ENERGY_USAGE;
+    }
+
+    private void startUiEnergySubscription() {
+        if (uiEnergySubscription == null || !uiEnergySubscription.isStillSubscribed()) {
+            uiEnergySubscription = subscribeServerTick(this::consumeUiEnergy);
+        }
+    }
+
+    private void stopUiEnergySubscription() {
+        if (uiEnergySubscription != null) {
+            uiEnergySubscription.unsubscribe();
+            uiEnergySubscription = null;
+        }
+    }
+
+    private void consumeUiEnergy() {
+        if (openInterfaceCount <= 0 || !isFormed()) {
+            stopUiEnergySubscription();
+            return;
+        }
+        if (energyContainer == null) {
+            energyContainer = createEnergyContainer();
+        }
+        if (energyContainer.removeEnergy(UI_ENERGY_USAGE) < UI_ENERGY_USAGE) {
+            currentOutputSignal = 0;
+            status = "Insufficient energy";
+        } else if ("Insufficient energy".equals(status)) {
+            checkCircuit();
+        }
     }
 
     public void checkCircuit() {

@@ -8,5 +8,6 @@
   "item.gtcomputronics.punch_card.burned": "Burned cells: %s",
   "item.gtcomputronics.punch_card.locked": "Locked components: %s",
   "item.gtcomputronics.punch_card.completed": "Completed",
-  "block.gtcomputronics.analog_tabulator": "Analog Tabulator"
+  "block.gtcomputronics.analog_tabulator": "Analog Tabulator",
+  "block.gtcomputronics.analog_computing_framework": "Analog Computing Framework"
 }

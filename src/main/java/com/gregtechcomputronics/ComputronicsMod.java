@@ -21,6 +21,7 @@ import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
 import com.gregtechcomputronics.common.item.PunchedCardItem;
+import com.gregtechcomputronics.data.CustomBlocks;
 import com.gregtechcomputronics.data.CustomCreativeModeTabs;
 import com.gregtechcomputronics.data.CustomItems;
 import com.gregtechcomputronics.data.CustomMachines;
@@ -55,6 +56,7 @@ public class ComputronicsMod {
         MinecraftForge.EVENT_BUS.register(this);
 
         CustomCreativeModeTabs.init();
+        CustomBlocks.init();
         CustomItems.init();
         REGISTRATE.registerRegistrate();
     }
