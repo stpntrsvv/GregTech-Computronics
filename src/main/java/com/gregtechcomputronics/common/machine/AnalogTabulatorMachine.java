@@ -9,6 +9,8 @@ import com.gregtechceu.gtceu.api.machine.feature.IFancyUIMachine;
 import com.gregtechceu.gtceu.api.machine.feature.IMachineLife;
 import com.gregtechceu.gtceu.api.machine.trait.NotifiableItemStackHandler;
 
+import com.lowdragmc.lowdraglib.gui.texture.ItemStackTexture;
+import com.lowdragmc.lowdraglib.gui.widget.ImageWidget;
 import com.lowdragmc.lowdraglib.gui.widget.LabelWidget;
 import com.lowdragmc.lowdraglib.gui.widget.Widget;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
@@ -17,7 +19,9 @@ import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
 import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import com.gregtechcomputronics.common.item.PunchedCardItem;
@@ -38,8 +42,6 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
 
     private final int gridWidth;
     private final int gridHeight;
-    private final int startY;
-    private final int targetY;
 
     @Persisted
     protected final NotifiableItemStackHandler cardInput;
@@ -57,12 +59,9 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
         super(holder);
         this.gridWidth = gridWidth;
         this.gridHeight = gridHeight;
-        this.startY = gridHeight / 2;
-        this.targetY = gridHeight / 2;
         this.cardInput = new NotifiableItemStackHandler(this, 1, IO.IN)
                 .setFilter(stack -> stack.getItem() instanceof PunchedCardItem);
-        this.circuitInventory = new NotifiableItemStackHandler(this, gridWidth * gridHeight, IO.BOTH)
-                .setFilter(stack -> CircuitComponent.fromStack(stack) != CircuitComponent.NONE);
+        this.circuitInventory = new CircuitInventoryHandler(this, gridWidth * gridHeight);
         this.cardOutput = new NotifiableItemStackHandler(this, 1, IO.OUT)
                 .setFilter(stack -> false);
 
@@ -90,7 +89,7 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
 
         int startSignal = PunchedCardItem.getStartSignal(card);
         int targetSignal = PunchedCardItem.getTargetSignal(card);
-        CircuitResult result = solve(startSignal, targetSignal);
+        CircuitResult result = solve(card, startSignal, targetSignal);
         currentOutputSignal = result.signal();
         status = result.message();
 
@@ -103,10 +102,20 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
         }
     }
 
-    private CircuitResult solve(int startSignal, int targetSignal) {
+    private CircuitResult solve(ItemStack card, int startSignal, int targetSignal) {
+        int cardGridWidth = getCardGridWidth(card);
+        int cardGridHeight = getCardGridHeight(card);
+        int startX = PunchedCardItem.getStartX(card);
+        int startY = PunchedCardItem.getStartY(card);
+        int targetX = PunchedCardItem.getTargetX(card);
+        int targetY = PunchedCardItem.getTargetY(card);
+        if (!isUsableCircuitSlot(card, startX, startY) || !isUsableCircuitSlot(card, targetX, targetY)) {
+            return new CircuitResult(false, 0, "Invalid card field", List.of());
+        }
+
         ArrayDeque<Node> queue = new ArrayDeque<>();
         Set<Node> visited = new HashSet<>();
-        queue.add(new Node(0, startY, startSignal, 1, 0, List.of(slotIndex(0, startY))));
+        queue.add(new Node(startX, startY, startSignal, 1, 0, List.of(slotIndex(startX, startY))));
 
         Integer reachedTargetSignal = null;
         while (!queue.isEmpty()) {
@@ -115,13 +124,13 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
                 continue;
             }
 
-            CircuitComponent component = componentAt(node.x(), node.y());
+            CircuitComponent component = componentAt(card, node.x(), node.y());
             int nextSignal = component.apply(node.signal(), node.dx(), node.dy());
             if (nextSignal <= 0 || nextSignal > MAX_SIGNAL) {
                 continue;
             }
 
-            if (node.x() == gridWidth - 1 && node.y() == targetY) {
+            if (node.x() == targetX && node.y() == targetY) {
                 reachedTargetSignal = nextSignal;
                 if (nextSignal == targetSignal) {
                     return new CircuitResult(true, nextSignal, "Matched target", node.path());
@@ -129,10 +138,10 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
                 continue;
             }
 
-            enqueue(queue, node, node.x() + 1, node.y(), nextSignal, 1, 0);
-            enqueue(queue, node, node.x() - 1, node.y(), nextSignal, -1, 0);
-            enqueue(queue, node, node.x(), node.y() + 1, nextSignal, 0, 1);
-            enqueue(queue, node, node.x(), node.y() - 1, nextSignal, 0, -1);
+            enqueue(queue, node, card, cardGridWidth, cardGridHeight, node.x() + 1, node.y(), nextSignal, 1, 0);
+            enqueue(queue, node, card, cardGridWidth, cardGridHeight, node.x() - 1, node.y(), nextSignal, -1, 0);
+            enqueue(queue, node, card, cardGridWidth, cardGridHeight, node.x(), node.y() + 1, nextSignal, 0, 1);
+            enqueue(queue, node, card, cardGridWidth, cardGridHeight, node.x(), node.y() - 1, nextSignal, 0, -1);
         }
 
         if (reachedTargetSignal == null) {
@@ -141,12 +150,21 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
         return new CircuitResult(false, reachedTargetSignal, "Signal mismatch", List.of());
     }
 
-    private CircuitComponent componentAt(int x, int y) {
+    private CircuitComponent componentAt(ItemStack card, int x, int y) {
+        if (!isUsableCircuitSlot(card, x, y)) {
+            return CircuitComponent.NONE;
+        }
+        CircuitComponent lockedComponent = CircuitComponent
+                .fromCardComponent(PunchedCardItem.getLockedComponent(card, x, y));
+        if (lockedComponent != CircuitComponent.NONE) {
+            return lockedComponent;
+        }
         return CircuitComponent.fromStack(circuitInventory.getStackInSlot(slotIndex(x, y)));
     }
 
-    private void enqueue(ArrayDeque<Node> queue, Node source, int x, int y, int signal, int dx, int dy) {
-        if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
+    private void enqueue(ArrayDeque<Node> queue, Node source, ItemStack card, int cardGridWidth, int cardGridHeight,
+                         int x, int y, int signal, int dx, int dy) {
+        if (x >= 0 && x < cardGridWidth && y >= 0 && y < cardGridHeight && isUsableCircuitSlot(card, x, y)) {
             int slot = slotIndex(x, y);
             if (!source.path().contains(slot)) {
                 queue.add(new Node(x, y, signal, dx, dy, appendPath(source.path(), slot)));
@@ -162,8 +180,40 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
         return y * gridWidth + x;
     }
 
+    private int getCardGridWidth(ItemStack card) {
+        return Math.min(gridWidth, PunchedCardItem.getGridWidth(card));
+    }
+
+    private int getCardGridHeight(ItemStack card) {
+        return Math.min(gridHeight, PunchedCardItem.getGridHeight(card));
+    }
+
+    private boolean isUsableCircuitSlot(ItemStack card, int x, int y) {
+        if (!(card.getItem() instanceof PunchedCardItem)) {
+            return x >= 0 && x < gridWidth && y >= 0 && y < gridHeight;
+        }
+        return x >= 0 && x < getCardGridWidth(card) && y >= 0 && y < getCardGridHeight(card) &&
+                !PunchedCardItem.isBurnedCell(card, x, y);
+    }
+
+    private boolean canPlaceCircuitComponent(int slot, ItemStack stack) {
+        ItemStack card = cardInput.getStackInSlot(0);
+        if (!(card.getItem() instanceof PunchedCardItem)) {
+            return false;
+        }
+        int x = slot % gridWidth;
+        int y = slot / gridWidth;
+        return CircuitComponent.fromStack(stack) != CircuitComponent.NONE && isUsableCircuitSlot(card, x, y) &&
+                !PunchedCardItem.isLockedCell(card, x, y);
+    }
+
     private void consumeCircuitPath(List<Integer> path) {
+        ItemStack card = cardInput.getStackInSlot(0);
         for (int slot : new HashSet<>(path)) {
+            if (card.getItem() instanceof PunchedCardItem &&
+                    PunchedCardItem.isLockedCell(card, slot % gridWidth, slot / gridWidth)) {
+                continue;
+            }
             ItemStack stack = circuitInventory.storage.getStackInSlot(slot);
             if (!stack.isEmpty()) {
                 stack.shrink(1);
@@ -185,8 +235,12 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
         for (int y = 0; y < gridHeight; y++) {
             for (int x = 0; x < gridWidth; x++) {
                 group.addWidget(
-                        new SlotWidget(circuitInventory.storage, slot++, gridStartX + x * 18, gridStartY + y * 18,
+                        new SlotWidget(circuitInventory, slot++, gridStartX + x * 18, gridStartY + y * 18,
                                 true, true).setBackgroundTexture(GuiTextures.SLOT));
+                int cellX = x;
+                int cellY = y;
+                group.addWidget(new ImageWidget(gridStartX + x * 18 + 1, gridStartY + y * 18 + 1, 16, 16,
+                        () -> new ItemStackTexture(getLockedComponentStack(cellX, cellY))));
             }
         }
 
@@ -208,7 +262,10 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
         group.addWidget(new LabelWidget(126, 123, "Schematic"));
 
         group.addWidget(new LabelWidget(8, 144, () -> "Out: " + currentOutputSignal));
-        group.addWidget(new LabelWidget(66, 144, () -> "Status: " + status));
+        group.addWidget(new LabelWidget(54, 136, () -> "Field: " + getFieldText()));
+        group.addWidget(new LabelWidget(112, 136, () -> "Route: " + getRouteText()));
+        group.addWidget(new LabelWidget(8, 136, () -> "Locked: " + getLockedText()));
+        group.addWidget(new LabelWidget(54, 148, () -> "Status: " + status));
         return group;
     }
 
@@ -226,6 +283,39 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
             return "-";
         }
         return String.valueOf(PunchedCardItem.getTargetSignal(card));
+    }
+
+    private String getFieldText() {
+        ItemStack card = cardInput.getStackInSlot(0);
+        if (!(card.getItem() instanceof PunchedCardItem)) {
+            return "-";
+        }
+        return PunchedCardItem.getGridWidth(card) + "x" + PunchedCardItem.getGridHeight(card);
+    }
+
+    private String getRouteText() {
+        ItemStack card = cardInput.getStackInSlot(0);
+        if (!(card.getItem() instanceof PunchedCardItem)) {
+            return "-";
+        }
+        return PunchedCardItem.getStartX(card) + "," + PunchedCardItem.getStartY(card) + ">" +
+                PunchedCardItem.getTargetX(card) + "," + PunchedCardItem.getTargetY(card);
+    }
+
+    private String getLockedText() {
+        ItemStack card = cardInput.getStackInSlot(0);
+        if (!(card.getItem() instanceof PunchedCardItem)) {
+            return "-";
+        }
+        return String.valueOf(PunchedCardItem.getLockedCellSlots(card).length);
+    }
+
+    private ItemStack getLockedComponentStack(int x, int y) {
+        ItemStack card = cardInput.getStackInSlot(0);
+        if (!(card.getItem() instanceof PunchedCardItem)) {
+            return ItemStack.EMPTY;
+        }
+        return CircuitComponent.fromCardComponent(PunchedCardItem.getLockedComponent(card, x, y)).asDisplayStack();
     }
 
     @Override
@@ -275,6 +365,36 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
             };
         }
 
+        static CircuitComponent fromCardComponent(int component) {
+            return switch (component) {
+                case PunchedCardItem.COMPONENT_WIRE -> WIRE;
+                case PunchedCardItem.COMPONENT_RESISTOR -> RESISTOR;
+                case PunchedCardItem.COMPONENT_DIODE -> DIODE;
+                case PunchedCardItem.COMPONENT_CAPACITOR -> CAPACITOR;
+                case PunchedCardItem.COMPONENT_VACUUM_TUBE -> VACUUM_TUBE;
+                default -> NONE;
+            };
+        }
+
+        ItemStack asDisplayStack() {
+            ResourceLocation id = switch (this) {
+                case WIRE -> new ResourceLocation("gtceu", "wire_single_copper");
+                case RESISTOR -> new ResourceLocation("gtceu", "resistor");
+                case DIODE -> new ResourceLocation("gtceu", "diode");
+                case CAPACITOR -> new ResourceLocation("gtceu", "capacitor");
+                case VACUUM_TUBE -> new ResourceLocation("gtceu", "vacuum_tube");
+                case NONE -> null;
+            };
+            if (id == null) {
+                return ItemStack.EMPTY;
+            }
+            Item item = ForgeRegistries.ITEMS.getValue(id);
+            if (item == null || item == Items.AIR) {
+                return ItemStack.EMPTY;
+            }
+            return new ItemStack(item);
+        }
+
         private static boolean isWireLike(String itemPath, ItemStack stack) {
             if (itemPath.contains("wiremill") || itemPath.contains("wire_cutter") ||
                     itemPath.contains("wirecutter") || itemPath.contains("wire_extruder_mold") ||
@@ -289,6 +409,33 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
                 String tagPath = tag.location().getPath();
                 return tagPath.contains("wire") || tagPath.contains("cable");
             });
+        }
+    }
+
+    private class CircuitInventoryHandler extends NotifiableItemStackHandler {
+
+        CircuitInventoryHandler(AnalogTabulatorMachine machine, int slots) {
+            super(machine, slots, IO.BOTH);
+        }
+
+        @Override
+        public boolean isItemValid(int slot, @NotNull ItemStack stack) {
+            return canPlaceCircuitComponent(slot, stack);
+        }
+
+        @Override
+        public ItemStack insertItem(int slot, @NotNull ItemStack stack, boolean simulate) {
+            if (!canPlaceCircuitComponent(slot, stack)) {
+                return stack;
+            }
+            return super.insertItem(slot, stack, simulate);
+        }
+
+        @Override
+        public void setStackInSlot(int index, @NotNull ItemStack stack) {
+            if (stack.isEmpty() || canPlaceCircuitComponent(index, stack)) {
+                super.setStackInSlot(index, stack);
+            }
         }
     }
 
