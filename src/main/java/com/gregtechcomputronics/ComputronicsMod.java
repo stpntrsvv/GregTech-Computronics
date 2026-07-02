@@ -10,6 +10,7 @@ import com.gregtechceu.gtceu.api.registry.registrate.GTRegistrate;
 import com.gregtechceu.gtceu.api.sound.SoundEntry;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.common.MinecraftForge;
@@ -19,6 +20,7 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
+import com.gregtechcomputronics.common.item.PunchedCardItem;
 import com.gregtechcomputronics.data.CustomBlocks;
 import com.gregtechcomputronics.data.CustomCreativeModeTabs;
 import com.gregtechcomputronics.data.CustomItems;
@@ -67,7 +69,11 @@ public class ComputronicsMod {
     }
 
     private void clientSetup(final FMLClientSetupEvent event) {
-        LOGGER.info("Hey, we're on Minecraft version {}!", Minecraft.getInstance().getLaunchedVersion());
+        event.enqueueWork(() -> {
+            LOGGER.info("Hey, we're on Minecraft version {}!", Minecraft.getInstance().getLaunchedVersion());
+            ItemProperties.register(CustomItems.PUNCH_CARD.get(), id("filled"),
+                    (stack, level, entity, seed) -> PunchedCardItem.isCompleted(stack) ? 1.0F : 0.0F);
+        });
     }
 
     /**
