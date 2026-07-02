@@ -147,7 +147,10 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
 
     private void enqueue(ArrayDeque<Node> queue, Node source, int x, int y, int signal, int dx, int dy) {
         if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
-            queue.add(new Node(x, y, signal, dx, dy, appendPath(source.path(), slotIndex(x, y))));
+            int slot = slotIndex(x, y);
+            if (!source.path().contains(slot)) {
+                queue.add(new Node(x, y, signal, dx, dy, appendPath(source.path(), slot)));
+            }
         }
     }
 
@@ -235,6 +238,7 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
     private enum CircuitComponent {
 
         NONE,
+        WIRE,
         RESISTOR,
         DIODE,
         CAPACITOR,
@@ -243,6 +247,7 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
         int apply(int signal, int dx, int dy) {
             return switch (this) {
                 case NONE -> 0;
+                case WIRE -> signal;
                 case RESISTOR -> signal - 1;
                 case DIODE -> dx == 1 && dy == 0 ? signal : 0;
                 case CAPACITOR -> signal >= CAPACITOR_THRESHOLD ? signal : 0;
@@ -258,6 +263,9 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
             if (id == null || !"gtceu".equals(id.getNamespace())) {
                 return NONE;
             }
+            if (isWireLike(id.getPath(), stack)) {
+                return WIRE;
+            }
             return switch (id.getPath()) {
                 case "resistor", "smd_resistor", "advanced_smd_resistor" -> RESISTOR;
                 case "diode", "smd_diode", "advanced_smd_diode" -> DIODE;
@@ -265,6 +273,22 @@ public class AnalogTabulatorMachine extends MetaMachine implements IFancyUIMachi
                 case "vacuum_tube" -> VACUUM_TUBE;
                 default -> NONE;
             };
+        }
+
+        private static boolean isWireLike(String itemPath, ItemStack stack) {
+            if (itemPath.contains("wiremill") || itemPath.contains("wire_cutter") ||
+                    itemPath.contains("wirecutter") || itemPath.contains("wire_extruder_mold") ||
+                    itemPath.contains("wireless")) {
+                return false;
+            }
+            if (itemPath.startsWith("wire_") || itemPath.endsWith("_wire") || itemPath.contains("_wire_") ||
+                    itemPath.startsWith("cable_") || itemPath.endsWith("_cable") || itemPath.contains("_cable_")) {
+                return true;
+            }
+            return stack.getTags().anyMatch(tag -> {
+                String tagPath = tag.location().getPath();
+                return tagPath.contains("wire") || tagPath.contains("cable");
+            });
         }
     }
 
